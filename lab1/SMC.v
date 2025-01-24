@@ -25,6 +25,11 @@ output reg [7:0] out_n;
 wire [3:0] ID0_b, ID1_b, ID2_b, ID3_b, ID4_b, ID5_b;
 wire [3:0] gm0_b, gm1_b, gm2_b, gm3_b, gm4_b, gm5_b;
 
+wire [3:0] sort_0, sort_1, sort_2, sort_3, sort_4, sort_5;
+
+wire [3:0] nn1, nn2, nn3;
+wire [7:0] ans;
+
 
 	calculate c0(ID0_b, gm0_b, W_0, V_GS_0, V_DS_0);
 	calculate c1(ID1_b, gm1_b, W_1, V_GS_1, V_DS_1);
@@ -33,7 +38,19 @@ wire [3:0] gm0_b, gm1_b, gm2_b, gm3_b, gm4_b, gm5_b;
 	calculate c4(ID4_b, gm4_b, W_4, V_GS_4, V_DS_4);
 	calculate c5(ID5_b, gm5_b, W_5, V_GS_5, V_DS_5);
 
+	sort s1(ID0_b, ID1_b, ID2_b, ID3_b, ID4_b, ID5_b,
+			gm0_b, gm1_b, gm2_b, gm3_b, gm4_b, gm5_b,
+			mode[0],
+			sort_0, sort_1, sort_2, sort_3, sort_4, sort_5
+		);
 
+	assign nn1 = mode[1] ? sort_0 / 3 : sort_3 / 3;
+	assign nn2 = mode[1] ? sort_1 / 3 : sort_4 / 3;
+	assign nn3 = mode[1] ? sort_2 / 3 : sort_5 / 3;
+	assign ans = mod[0] ? (3 * nn1 + 4 * nn2 + 5 * nn3)  / 3 : 
+						  (nn1 + nn2 + nn3) / 3;
+
+	assign out_n = mode[0] ? ans >> 2 : ans;
 
 endmodule
 
