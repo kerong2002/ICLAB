@@ -1,0 +1,80 @@
+m255
+K4
+z2
+!s11f vlog 2020.1 2020.02, Feb 28 2020
+13
+!s112 1.1
+!i10d 8192
+!i10e 25
+!i10f 100
+cModel Technology
+Z0 dD:/quartus_test/simulation/qsim
+vhard_block
+Z1 !s110 1737716425
+!i10b 1
+!s100 1FZTlX;mTEf^@U7@WXI=`1
+Z2 !s11b Dg1SIo80bB@j0V0VzS_@n1
+IImK1E6>A`UZhUdUn:oJTm3
+Z3 VDg1SIo80bB@j0V0VzS_@n1
+R0
+Z4 w1737716424
+Z5 8sort.vo
+Z6 Fsort.vo
+!i122 4
+L0 4275 45
+Z7 OV;L;2020.1;71
+r1
+!s85 0
+31
+Z8 !s108 1737716425.000000
+Z9 !s107 sort.vo|
+Z10 !s90 -work|work|sort.vo|
+!i113 1
+Z11 o-work work
+Z12 tCvgOpt 0
+vsort
+R1
+!i10b 1
+!s100 8H]AJ8nFN0C4H:aXeQM_i3
+R2
+I3?i9JTnj42@@C;kIWdIhE0
+R3
+R0
+R4
+R5
+R6
+!i122 4
+L0 32 4242
+R7
+r1
+!s85 0
+31
+R8
+R9
+R10
+!i113 1
+R11
+R12
+vsort_vlg_vec_tst
+R1
+!i10b 1
+!s100 h^jGEf0P@Y88bN^`V4>[D2
+R2
+I01MFCZEij_8^o>;Ed>NCU3
+R3
+R0
+R4
+8Waveform.vwf.vt
+FWaveform.vwf.vt
+!i122 5
+L0 30 765
+R7
+r1
+!s85 0
+31
+R8
+!s107 Waveform.vwf.vt|
+!s90 -work|work|Waveform.vwf.vt|
+!i113 1
+R11
+R12
