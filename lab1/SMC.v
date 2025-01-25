@@ -29,7 +29,7 @@ wire [7:0] gm0_b, gm1_b, gm2_b, gm3_b, gm4_b, gm5_b;
 wire [7:0] sort_0, sort_1, sort_2, sort_3, sort_4, sort_5;
 
 wire [7:0] nn1, nn2, nn3;
-wire [7:0] ans;
+wire [9:0] ans;
 
 
     calculate c0(ID0_b, gm0_b, W_0, V_GS_0, V_DS_0);
@@ -48,10 +48,10 @@ wire [7:0] ans;
     assign nn1 = mode[1] ? sort_0 : sort_3 ;
     assign nn2 = mode[1] ? sort_1 : sort_4 ;
     assign nn3 = mode[1] ? sort_2 : sort_5 ;
-    assign ans = mode[0] ? (3 * nn1 + 4 * nn2 + 5 * nn3)  / 12 : 
+    aassign ans = mode[0] ? (3 * nn1 + 4 * nn2 + 5 * nn3) / 3 : 
                           (nn1 + nn2 + nn3) / 3;
 
-    assign out_n = ans;
+    assign out_n = mode[0] ? ans[9:2] : ans[7:0];
 
 endmodule
 
