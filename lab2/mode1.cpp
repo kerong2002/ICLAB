@@ -20,7 +20,7 @@ int main() {
     x[3] = 16;  y[3] = 0;
 
     // 執行線性插值，遍歷 y[0] 到 y[2] 的區間，並計算對應的插值
-    for (int i = 0; i <= y[0]; i++) {
+    for (int i = 2; i <= 2; i++) {
         // 計算分子，y[2] - y[0] 用來控制插值的範圍
         int numerator = y[2] - y[0];
 
@@ -29,8 +29,8 @@ int main() {
         int dR = x[3] - x[1];  // 右邊的 x 軸變化量
 
         // 計算插值過程中的中間值
-        int tempL = dL * i;     // 左邊的插值進行計算
-        int tempR = dR * i;     // 右邊的插值進行計算
+        int tempL = dL * (i - y[2]);     // 左邊的插值進行計算
+        int tempR = dR * (i - y[2]);     // 右邊的插值進行計算
 
         // 計算每個插值的位移
         int offsetL = tempL / numerator;

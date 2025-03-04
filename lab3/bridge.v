@@ -1,0 +1,308 @@
+//############################################################################
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//   (C) Copyright Laboratory System Integration and Silicon Implementation
+//   All Right Reserved
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//
+//   2023 ICLAB Fall Course
+//   Lab03      : BRIDGE
+//   Author     : CHEN, KE-RONG
+//                
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//
+//   File Name   : BRIDGE_encrypted.v
+//   Module Name : BRIDGE
+//   Release version : v1.0 (Release Date: Sep-2023)
+//
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//############################################################################
+
+module bridge(
+    // Input Signals
+    clk,
+    rst_n,
+    in_valid,
+    direction,
+    addr_dram,
+    addr_sd,
+
+    // Output Signals
+    out_valid,
+    out_data,
+
+    // DRAM Signals
+    AR_VALID, AR_ADDR, R_READY, AW_VALID, AW_ADDR, W_VALID, W_DATA, B_READY,
+    AR_READY, R_VALID, R_RESP, R_DATA, AW_READY, W_READY, B_VALID, B_RESP,
+
+    // SD Signals
+    MISO,
+    MOSI
+);
+
+// Input Signals
+input clk, rst_n;
+input in_valid;
+input direction;
+input [12:0] addr_dram;
+input [15:0] addr_sd;
+
+// Output Signals
+output reg out_valid;
+output reg [7:0] out_data;
+
+// DRAM Signals
+// write address channel
+output reg [31:0] AW_ADDR;
+output reg AW_VALID;
+input AW_READY;
+
+// write data channel
+output reg W_VALID;
+output reg [63:0] W_DATA;
+input W_READY;
+
+// write response channel
+input B_VALID;
+input [1:0] B_RESP;
+output reg B_READY;
+
+// read address channel
+output reg [31:0] AR_ADDR;
+output reg AR_VALID;
+input AR_READY;
+
+// read data channel
+input [63:0] R_DATA;
+input R_VALID;
+input [1:0] R_RESP;
+output reg R_READY;
+
+// SD Signals
+input MISO;
+output reg MOSI;
+
+//==============================================//
+//       parameter & integer declaration        //
+//==============================================//
+
+parameter READ             = 5'd0; //direction 0 DRAM->SD
+parameter DRAM_AR_V        = 5'd1; 
+parameter DRAM_AR_R        = 5'd2; 
+parameter DRAM_R_R         = 5'd3;
+parameter DRAM_R_V         = 5'd4;
+parameter SD_COMMAND       = 5'd5;
+
+
+parameter SD_RESPONSE = 5'd4;
+parameter SD_DATA     = 5'd5;
+parameter SD_DATA_RES = 5'd6;
+parameter SD_READ = 5'd31;
+
+//==============================================//
+//            FSM State Declaration             //
+//==============================================//
+reg [4:0] state, nstate;
+
+
+//==============================================//
+//           reg & wire declaration             //
+//==============================================//
+reg        direction_reg;
+reg [12:0] addr_dram_reg;
+reg [15:0] addr_sd_reg;
+
+
+reg [63:0] R_DATA_reg;
+reg [47:0] sd_write_command;
+
+
+//write command to SD
+reg [39:0] CRC7_IDATA;
+wire [47:0] SD_rw_cmd;
+reg [47:0] SD_rw_cmd_reg;
+reg [10:0] cnt;
+
+
+//==============================================//
+//           CRC Calculation Module             //
+//==============================================//
+// CRC-7 function
+function automatic [6:0] CRC7;
+    input [39:0] data;  
+    reg [6:0] crc;
+    integer i;
+    reg data_in, data_out;
+    parameter polynomial = 7'h9;
+
+    begin
+        crc = 7'd0;
+        for (i = 0; i < 40; i = i + 1) begin
+            data_in = data[39-i];
+            data_out = crc[6];
+            crc = crc << 1;  // Shift the CRC
+            if (data_in ^ data_out) begin
+                crc = crc ^ polynomial;
+            end
+        end
+        CRC7 = crc;
+    end
+endfunction
+
+// CRC-16-CCITT function
+function automatic [15:0] CRC16_CCITT; 
+    input [63:0] data;
+    reg [15:0] crc;
+    integer i;
+    reg data_in, data_out;
+    parameter polynomial = 16'h1021;  // x^16 + x^12 + x^5 + 1
+    
+    begin
+        crc = 16'd0;
+        for (i = 0; i < 64; i = i + 1) begin
+            data_in = data[63-i];
+            data_out = crc[15];
+            crc = crc << 1;  // Shift the CRC
+            if (data_in ^ data_out) begin
+                crc = crc ^ polynomial;
+            end
+        end
+        CRC16_CCITT = crc;
+    end
+endfunction
+
+//==============================================//
+//             FSM State Transition             //
+//==============================================//
+always @(posedge clk, negedge rst_n) begin
+    if (!rst_n) begin
+        state <= READ;
+    end
+    else begin
+        state <= nstate;
+    end
+end
+
+
+//==============================================//
+//              Next State Block                //
+//==============================================//
+always@(*)begin
+    case(state)
+        READ:        nstate = (in_valid == 1&& direction == 0) ? DRAM_AR_V : SD_READ;
+        DRAM_AR_V:   nstate = (AR_READY) ? DRAM_AR_R : DRAM_AR_V;
+        DRAM_AR_R:   nstate = (R_VALID) ? DRAM_R_V : DRAM_AR_R;
+        DRAM_AR_V:   nstate = SD_COMMAND;
+
+    endcase
+end
+
+
+
+//==============================================//
+//                Read PATTERN                  //
+//==============================================//
+always@(posedge clk, negedge rst_n)begin
+    if(!rst_n)begin
+        {direction_reg, addr_dram_reg, addr_sd_reg} <= 27'd0;
+    end
+    else begin
+        case(state)
+            READ : begin
+                if (in_valid == 1) begin
+                    {direction_reg, addr_dram_reg, addr_sd_reg} <= {direction, addr_dram, addr_sd};
+                end
+            end
+        endcase
+    end
+end
+
+//==============================================//
+//                DARM Read                     //
+//==============================================//
+always@(posedge clk, negedge rst_n)begin
+    if(!rst_n)begin
+        AR_ADDR  <= 32'd0;
+        AR_VALID <= 1'd0;
+        R_READY  <= 1'd0;
+    end
+    else begin
+        case(state)
+            DRAM_AR_V:begin
+                AR_ADDR  <= addr_dram_reg;
+                AR_VALID <= 1'd1;
+            end
+            DRAM_AR_R:begin
+                AR_ADDR  <= 32'd0;
+                AR_VALID <= 1'd0;
+            end
+            DRAM_R_R:begin
+                R_READY <= 1'd1;
+            end
+            DRAM_AR_V:begin
+                R_READY <= 1'd0;
+            end
+        endcase
+    end
+end
+
+always@(posedge clk, negedge rst_n)begin
+    if(!rst_n)begin
+        R_DATA_reg <= 64'd0;
+    end
+    else begin
+        case(state)
+            DRAM_AR_R : R_DATA_reg <= R_DATA;
+        endcase
+    end
+end
+
+
+
+
+//==============================================//
+//             Write Command to SD             //
+//==============================================//
+always@(*)begin
+    CRC7_IDATA = (direction_reg) ? {2'b01, 6'd17, addr_sd_reg} 
+                                 : {2'd01, 6'd24, addr_sd_reg};
+end
+
+assign SD_rw_cmd = {CRC7_IDATA, CRC7(CRC7_IDATA), 1'b1};
+
+always@(posedge clk, negedge rst_n)begin
+    if(!rst_n)begin
+        MISO <= 1'b1;
+    end
+    else begin
+        case(state)
+            SD_COMMAND: MISO <= MISO[11'd48 - cnt];
+            default:    MISO <= 1'd1;
+        endcase
+    end
+end
+
+
+always@(posedge clk, negedge rst_n)begin
+    if(!rst_n)begin
+        sd_write_command <= 48'd0;
+    end
+    else begin
+        case(state)
+            SD_COMMAND: sd_write_command <= {2'b01, 6'd24, addr_dram_reg, };
+        endcase
+    end
+end
+
+always@(posedge clk, negedge rst_n)begin
+    if(!rst_n)begin
+        cnt <= 11'd0;
+    end
+    else begin
+        case(state)
+            
+        endcase
+    end
+end
+
+
+endfunction
