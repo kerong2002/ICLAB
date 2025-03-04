@@ -86,17 +86,17 @@ output reg MOSI;
 //==============================================//
 
 parameter READ             = 5'd0; //direction 0 DRAM->SD
-parameter DRAM_AR_V        = 5'd1; 
-parameter DRAM_AR_R        = 5'd2; 
-parameter DRAM_R_R         = 5'd3;
-parameter DRAM_R_V         = 5'd4;
-parameter SD_COMMAND       = 5'd5;
+parameter DRAM_READ_V      = 5'd1; 
+parameter DRAM_READ_R      = 5'd2; 
+parameter SD_COMMAND       = 5'd3;
+parameter SD_RESPONSE      = 5'd4;
+parameter SD_DATA_WRITE    = 5'd5;
+parameter SD_RESPONSE2     = 5'd6;
+parameter SD_RESPONSE_END  = 5'd7;
 
-
-parameter SD_RESPONSE = 5'd4;
 parameter SD_DATA     = 5'd5;
 parameter SD_DATA_RES = 5'd6;
-parameter SD_READ = 5'd31;
+parameter FINISH           = 5'd31;
 
 //==============================================//
 //            FSM State Declaration             //
@@ -113,13 +113,12 @@ reg [15:0] addr_sd_reg;
 
 
 reg [63:0] R_DATA_reg;
-reg [47:0] sd_write_command;
-
+reg [83:0] sd_write_data;
 
 //write command to SD
 reg [39:0] CRC7_IDATA;
 wire [47:0] SD_rw_cmd;
-reg [47:0] SD_rw_cmd_reg;
+reg [87:0] SD_rw_data;
 reg [10:0] cnt;
 
 
@@ -188,10 +187,12 @@ end
 //==============================================//
 always@(*)begin
     case(state)
-        READ:        nstate = (in_valid == 1&& direction == 0) ? DRAM_AR_V : SD_READ;
-        DRAM_AR_V:   nstate = (AR_READY) ? DRAM_AR_R : DRAM_AR_V;
-        DRAM_AR_R:   nstate = (R_VALID) ? DRAM_R_V : DRAM_AR_R;
-        DRAM_AR_V:   nstate = SD_COMMAND;
+        READ:        nstate = (in_valid == 1&& direction == 0) ? DRAM_READ_V : SD_READ;
+        DRAM_READ_V: nstate = (AR_READY) ? DRAM_READ_R : DRAM_READ_V;
+        DRAM_READ_R: nstate = (R_VALID)  ? SD_COMMAND : DRAM_READ_R;
+        SD_COMMAND:  nstate = (cnt == 11'd47) ? SD_RESPONSE : SD_COMMAND;
+        SD_RESPONSE: nstate = (cnt == 11'd7) ? SD_DATA_WRITE: SD_RESPONSE;
+
 
     endcase
 end
@@ -227,19 +228,14 @@ always@(posedge clk, negedge rst_n)begin
     end
     else begin
         case(state)
-            DRAM_AR_V:begin
+            DRAM_READ_V:begin
                 AR_ADDR  <= addr_dram_reg;
                 AR_VALID <= 1'd1;
             end
-            DRAM_AR_R:begin
+            DRAM_READ_R:begin
                 AR_ADDR  <= 32'd0;
                 AR_VALID <= 1'd0;
-            end
-            DRAM_R_R:begin
                 R_READY <= 1'd1;
-            end
-            DRAM_AR_V:begin
-                R_READY <= 1'd0;
             end
         endcase
     end
@@ -251,7 +247,7 @@ always@(posedge clk, negedge rst_n)begin
     end
     else begin
         case(state)
-            DRAM_AR_R : R_DATA_reg <= R_DATA;
+            DRAM_READ_R : R_DATA_reg <= R_DATA;
         endcase
     end
 end
@@ -264,10 +260,11 @@ end
 //==============================================//
 always@(*)begin
     CRC7_IDATA = (direction_reg) ? {2'b01, 6'd17, addr_sd_reg} 
-                                 : {2'd01, 6'd24, addr_sd_reg};
+                                 : {2'b01, 6'd24, addr_sd_reg};
 end
 
 assign SD_rw_cmd = {CRC7_IDATA, CRC7(CRC7_IDATA), 1'b1};
+assign SD_rw_data = {8'hFE, R_DATA_reg, CRC16_CCITT(R_DATA_reg)};
 
 always@(posedge clk, negedge rst_n)begin
     if(!rst_n)begin
@@ -275,23 +272,14 @@ always@(posedge clk, negedge rst_n)begin
     end
     else begin
         case(state)
-            SD_COMMAND: MISO <= MISO[11'd48 - cnt];
-            default:    MISO <= 1'd1;
+            SD_COMMAND:         MISO <= SD_rw_cmd[11'd48 - cnt];
+            SD_DATA_WRITE:      MISO <= SD_rw_data[11'd87 - cnt];
+            default:            MISO <= 1'd1;
         endcase
     end
 end
 
 
-always@(posedge clk, negedge rst_n)begin
-    if(!rst_n)begin
-        sd_write_command <= 48'd0;
-    end
-    else begin
-        case(state)
-            SD_COMMAND: sd_write_command <= {2'b01, 6'd24, addr_dram_reg, };
-        endcase
-    end
-end
 
 always@(posedge clk, negedge rst_n)begin
     if(!rst_n)begin
@@ -299,7 +287,10 @@ always@(posedge clk, negedge rst_n)begin
     end
     else begin
         case(state)
-            
+            SD_COMMAND:    cnt <= cnt + 11'd1;
+            SD_DATA_WRITE: cnt <= cnt + 11'd1;
+            SD_RESPONSE2:  cnt <= cnt + 11'd1;
+            default:       cnt <= 11'd0;
         endcase
     end
 end
